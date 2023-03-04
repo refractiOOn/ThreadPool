@@ -1,23 +1,26 @@
 #include <iostream>
 #include <chrono>
+#include <atomic>
 #include "ThreadPool.hpp"
 
-void Increment(int* in, int* out)
+void Increment(std::atomic<std::size_t>& num)
 {
-    *out = *in + 1;
+    ++num;
 }
 
 int main(int, char**)
 {
     std::cout << "Hello, world!\n";
 
-    int in = 5, out;
-    Executable task(&Increment, &in, &out);
+    std::atomic<std::size_t> num = 0;
 
     ThreadPool pool(std::jthread::hardware_concurrency());
-    pool.Enqueue(std::move(task));
+    for (std::size_t i = 0; i < 1000000; ++i)
+    {
+        pool.Enqueue(Executable(&Increment, std::ref(num)));
+    }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-    std::cout << out << std::endl;
+    std::cout << num << std::endl;
 }
