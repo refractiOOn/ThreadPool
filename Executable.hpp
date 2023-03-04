@@ -13,6 +13,7 @@ public:
     Executable& operator=(Executable&& another) noexcept
     {
         m_exec = std::move(another.m_exec);
+        return *this;
     }
 
     void operator()() const

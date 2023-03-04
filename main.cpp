@@ -1,5 +1,6 @@
 #include <iostream>
-#include "Executable.hpp"
+#include <chrono>
+#include "ThreadPool.hpp"
 
 void Increment(int* in, int* out)
 {
@@ -12,6 +13,11 @@ int main(int, char**)
 
     int in = 5, out;
     Executable task(&Increment, &in, &out);
-    task();
+
+    ThreadPool pool(std::jthread::hardware_concurrency());
+    pool.Enqueue(std::move(task));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
     std::cout << out << std::endl;
 }

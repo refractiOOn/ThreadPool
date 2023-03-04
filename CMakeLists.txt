@@ -10,6 +10,7 @@ enable_testing()
 add_executable(${PROJECT_NAME}
     main.cpp
     Executable.hpp
+    ThreadPool.hpp ThreadPool.cpp
 )
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
