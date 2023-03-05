@@ -9,8 +9,7 @@ enable_testing()
 
 add_executable(${PROJECT_NAME}
     main.cpp
-    Executable.hpp
-    ThreadPool.hpp ThreadPool.cpp
+    ThreadPool.hpp
 )
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
