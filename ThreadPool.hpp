@@ -1,3 +1,5 @@
+#pragma once
+
 #include <vector>
 #include <queue>
 #include <thread>
@@ -9,27 +11,40 @@
 
 class ThreadPool
 {
-public:
     typedef std::function<void()> Task;
 
-    ThreadPool(std::size_t numThreads)
+    ThreadPool(std::size_t numThreads) :
+        m_stopping { false }
     {
         m_threads.resize(numThreads);
-        Start();
+        start();
     }
+
+public:
     ~ThreadPool()
     {
-        Stop();
+        stop();
+    }
+
+    static ThreadPool *getInstance(const std::size_t numThreads = 0)
+    {
+        std::lock_guard lock { m_creationMutex };
+        if (!m_instance)
+        {
+            const std::size_t arg { !numThreads ? std::jthread::hardware_concurrency() : numThreads };
+            m_instance = new ThreadPool(arg);
+        }
+        return m_instance;
     }
 
     template<typename Func, typename... Args>
-    auto Enqueue(Func&& func, Args&&... args) -> std::future<decltype(func(std::declval<Args>()...))>
+    auto enqueue(Func &&func, Args &&...args) -> std::future<decltype(func(std::declval<Args>()...))>
     {
-        auto wrapper = std::make_shared<std::packaged_task<decltype(func(std::declval<Args>()...)) ()>>(
-            std::bind(std::forward<Func>(func), std::forward<Args>(args)...));
+        auto wrapper { std::make_shared<std::packaged_task<decltype(func(std::declval<Args>()...)) ()>>(
+            std::bind(std::forward<Func>(func), std::forward<Args>(args)...)) };
 
         {
-            std::unique_lock lock(m_taskMutex);
+            std::unique_lock lock { m_taskMutex };
             m_tasks.emplace([=] {
                 (*wrapper)();
             });
@@ -40,16 +55,16 @@ public:
     }
 
 private:
-    void Start()
+    void start()
     {
-        std::ranges::for_each(std::ranges::begin(m_threads), std::ranges::end(m_threads), [&](auto& el) {
-            el = std::jthread([&] {
+        std::for_each(std::begin(m_threads), std::end(m_threads), [&](auto &el) {
+            el = std::jthread {[&] {
                 while (true)
                 {
-                    Task task;
+                    Task task {};
 
                     {
-                        std::unique_lock lock(m_taskMutex);
+                        std::unique_lock lock { m_taskMutex };
                         m_taskVar.wait(lock, [&] { return m_stopping || !m_tasks.empty(); } );
                         if (m_stopping && m_tasks.empty()) break;
 
@@ -59,13 +74,13 @@ private:
 
                     task();
                 }
-            }); 
+            }};
         });
     }
-    void Stop() noexcept
+    void stop() noexcept
     {
         {
-            std::lock_guard lock(m_taskMutex);
+            std::lock_guard lock { m_taskMutex };
             m_stopping = true;
         }
 
@@ -73,12 +88,19 @@ private:
     }
 
 private:
-    std::vector<std::jthread> m_threads;
+    std::vector<std::jthread> m_threads {};
 
-    std::condition_variable m_taskVar;
-    bool m_stopping = false;
-    std::mutex m_taskMutex;
+    std::condition_variable m_taskVar {};
+    bool m_stopping {};
+    std::mutex m_taskMutex {};
 
-    std::queue<Task> m_tasks;
+    std::queue<Task> m_tasks {};
+
+private:
+    static ThreadPool *m_instance;
+    static std::mutex m_creationMutex;
 
 };
+
+ThreadPool *ThreadPool::m_instance { nullptr };
+std::mutex ThreadPool::m_creationMutex {};
