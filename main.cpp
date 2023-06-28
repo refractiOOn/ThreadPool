@@ -3,7 +3,7 @@
 #include <vector>
 #include "ThreadPool.hpp"
 
-int Plus(int a, int b, std::atomic<std::size_t> &totalSum)
+int plus(int a, int b, std::atomic<std::size_t> &totalSum)
 {
     int localSum { a + b };
     totalSum += localSum;
@@ -18,7 +18,7 @@ int main(int, char**)
     ThreadPool *pool { ThreadPool::getInstance() };
     for (int i { 0 }; i < 100000; ++i)
     {
-        auto res { pool->enqueue(Plus, 10, 20, std::ref(totalSum)) };
+        auto res { pool->enqueue(plus, 10, 20, std::ref(totalSum)) };
         futures.push_back(std::move(res));
     }
 
