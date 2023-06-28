@@ -16,13 +16,13 @@ int main(int, char**)
     std::vector<std::future<int>> futures {};
 
     ThreadPool *pool { ThreadPool::getInstance() };
-    for (int i { 0 }; i < 100000; ++i)
+    for (int i { 0 }; i < 100; ++i)
     {
         auto res { pool->enqueue(plus, 10, 20, std::ref(totalSum)) };
         futures.push_back(std::move(res));
     }
 
-    for (auto &el : futures) el.get(); // waiting for finish
+    for (auto &el : futures) std::cout << "Local sum: " << el.get() << std::endl;
     
     std::cout << "Total sum: " << totalSum << std::endl;
 }
