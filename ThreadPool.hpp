@@ -2,16 +2,19 @@
 
 #include <vector>
 #include <queue>
+#include <memory>
+#include <type_traits>
+#include <functional>
 #include <thread>
 #include <mutex>
 #include <future>
-#include <memory>
-#include <functional>
 #include <condition_variable>
 
 class ThreadPool
 {
-    typedef std::function<void()> Task;
+    template<typename Callable, typename... Args>
+    using ReturnType = decltype(std::declval<Callable>()(std::declval<Args>()...));
+    using Task = std::function<void()>;
 
     ThreadPool(std::size_t numThreads) :
         m_stopping { false }
@@ -28,23 +31,22 @@ public:
 
     static ThreadPool *getInstance(const std::size_t numThreads = 0)
     {
-        std::lock_guard lock { m_creationMutex };
-        if (!m_instance)
-        {
+        std::call_once(m_creationFlag, [&] {
             const std::size_t arg { !numThreads ? std::jthread::hardware_concurrency() : numThreads };
-            m_instance = new ThreadPool(arg);
-        }
+            m_instance = new ThreadPool { arg };
+        });
         return m_instance;
     }
 
-    template<typename Func, typename... Args>
-    auto enqueue(Func &&func, Args &&...args) -> std::future<decltype(func(std::declval<Args>()...))>
+    template<typename Callable, typename... Args>
+    auto enqueue(Callable &&func, Args &&...args) -> std::enable_if_t<std::is_invocable_v<Callable, Args...>,
+        std::future<ReturnType<Callable, Args...>>>
     {
-        auto wrapper { std::make_shared<std::packaged_task<decltype(func(std::declval<Args>()...)) ()>>(
-            std::bind(std::forward<Func>(func), std::forward<Args>(args)...)) };
+        auto wrapper { std::make_shared<std::packaged_task<ReturnType<Callable, Args...> ()>>(
+            std::bind(std::forward<Callable>(func), std::forward<Args>(args)...)) };
 
         {
-            std::unique_lock lock { m_taskMutex };
+            std::lock_guard lock { m_taskMutex };
             m_tasks.emplace([=] {
                 (*wrapper)();
             });
@@ -88,19 +90,19 @@ private:
     }
 
 private:
-    std::vector<std::jthread> m_threads {};
+    std::vector<std::jthread> m_threads;
 
-    std::condition_variable m_taskVar {};
-    bool m_stopping {};
-    std::mutex m_taskMutex {};
+    std::condition_variable m_taskVar;
+    bool m_stopping;
+    std::mutex m_taskMutex;
 
-    std::queue<Task> m_tasks {};
+    std::queue<Task> m_tasks;
 
 private:
     static ThreadPool *m_instance;
-    static std::mutex m_creationMutex;
+    static std::once_flag m_creationFlag;
 
 };
 
 ThreadPool *ThreadPool::m_instance { nullptr };
-std::mutex ThreadPool::m_creationMutex {};
+std::once_flag ThreadPool::m_creationFlag {};
