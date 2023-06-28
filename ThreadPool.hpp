@@ -14,6 +14,10 @@ class ThreadPool
 {
     template<typename Callable, typename... Args>
     using ReturnType = decltype(std::declval<Callable>()(std::declval<Args>()...));
+
+    template<typename Callable, typename... Args>
+    using CallableFuture = std::enable_if_t<std::is_invocable_v<Callable, Args...>, std::future<ReturnType<Callable, Args...>>>;
+
     using Task = std::function<void()>;
 
     ThreadPool(std::size_t numThreads) :
@@ -39,8 +43,7 @@ public:
     }
 
     template<typename Callable, typename... Args>
-    auto enqueue(Callable &&func, Args &&...args) -> std::enable_if_t<std::is_invocable_v<Callable, Args...>,
-        std::future<ReturnType<Callable, Args...>>>
+    auto enqueue(Callable &&func, Args &&...args) -> CallableFuture<Callable, Args...>
     {
         auto wrapper { std::make_shared<std::packaged_task<ReturnType<Callable, Args...> ()>>(
             std::bind(std::forward<Callable>(func), std::forward<Args>(args)...)) };
